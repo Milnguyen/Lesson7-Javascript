@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Web Quản Lý Chi Tiêu Cá nhân</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root{--bg:#f6f7fb;--card:#ffffff;--muted:#6b7280;--accent:#2563eb;--danger:#ef4444}
+        *{box-sizing:border-box}
+        body{font-family:Inter,system-ui,Arial,sans-serif;margin:0;background:var(--bg);color:#0f172a}
+        .container{max-width:1100px;margin:28px auto;padding:20px}
+        header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+        h1{font-size:20px;margin:0}
+        .card{background:var(--card);border-radius:12px;box-shadow:0 6px 18px rgba(12,15,30,0.06);padding:16px}
+
+        /* form */
+        .form-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+        label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+        input[type=text], input[type=number], input[type=date], select{width:100%;padding:10px;border:1px solid #e6e9ef;border-radius:8px}
+        .btn{display:inline-block;padding:10px 14px;border-radius:10px;border:0;background:var(--accent);color:#fff;font-weight:600;cursor:pointer}
+        .btn.ghost{background:transparent;border:1px solid #e6e9ef;color:var(--muted)}
+        .btn.danger{background:var(--danger)}
+
+        /* layout */
+        .row{display:flex;gap:16px;margin-top:16px}
+        .col{flex:1}
+        .summary{display:flex;gap:12px;flex-wrap:wrap}
+        .summary .item{flex:1;padding:12px;border-radius:10px;background:linear-gradient(180deg,#fff,#fbfdff);text-align:center}
+        .item h3{margin:0;font-size:16px}
+        .item p{margin:8px 0 0;color:var(--muted)}
+
+        .savings{flex:1;min-width:220px;padding:12px;border-radius:10px;background:linear-gradient(180deg,#fff,#fbfdff);}
+        .savings input{width:100%;padding:6px;margin-top:4px;margin-bottom:6px;border:1px solid #e6e9ef;border-radius:6px;}
+        .savings button{width:100%;padding:6px;margin-bottom:6px;background:var(--accent);border-radius:6px;color:#fff;border:0;cursor:pointer;}
+
+        table{width:100%;border-collapse:collapse;margin-top:12px}
+        th,td{padding:10px;text-align:left;border-bottom:1px solid #f1f4f8;font-size:14px}
+        th{font-size:13px;color:var(--muted)}
+        td.actions{width:120px}
+        .small{font-size:13px;color:var(--muted)}
+
+        footer{margin-top:18px;text-align:center;color:var(--muted);font-size:13px}
+
+        @media (max-width:880px){
+            .form-grid{grid-template-columns:repeat(2,1fr)}
+            .row{flex-direction:column}
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>Quản Lý Chi Tiêu Cá Nhân</h1>
+        <div>
+            <button id="exportBtn" class="btn">Xuất dữ liệu</button>
+            <button id="clearBtn" class="btn ghost">Xóa dữ liệu</button>
+        </div>
+    </header>
+
+    <section class="card">
+        <h2 style="font-size:16px;margin:0 0 12px">Chi tiêu / Thu nhập</h2>
+        <form id="expenseForm">
+            <div class="form-grid">
+                <div>
+                    <label for="type">Loại</label>
+                    <select id="type">
+                        <option value="expense">Chi tiêu</option>
+                        <option value="income">Thu nhập</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="category">Danh mục</label>
+                    <select id="category">
+                        <option>Ăn uống</option>
+                        <option>Xăng xe</option>
+                        <option>Nhà ở</option>
+                        <option>Giải trí</option>
+                        <option>Mua sắm</option>
+                        <option>Khác</option>
+                        <option>Lương</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="amount">Số tiền (VND)</label>
+                    <input id="amount" type="number" step="1000" min="0" required />
+                </div>
+                <div>
+                    <label for="date">Ngày</label>
+                    <input id="date" type="date" required />
+                </div>
+                <div style="grid-column:1/-1">
+                    <label for="desc">Mô tả</label>
+                    <input id="desc" type="text" placeholder="Ví dụ: Đi cafe" />
+                </div>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+                <button type="submit" class="btn">Thêm</button>
+                <button type="button" id="resetForm" class="btn ghost">Làm mới</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="card" style="margin-top:16px">
+        <div style="display:flex;gap:12px;align-items:center;justify-content:space-between">
+            <div style="display:flex;gap:12px;align-items:center">
+                <label class="small">Bộ lọc:</label>
+                <select id="filterMonth"></select>
+                <select id="filterCategory"></select>
+            </div>
+            <div class="small">Tổng giao dịch: <span id="count">0</span></div>
+        </div>
+
+        <div class="row" style="margin-top:12px">
+            <div class="col">
+                <div class="summary">
+                    <div class="item">
+                        <h3 id="totalBalance">0 ₫</h3>
+                        <p>Tiết kiệm (Thu - Chi)</p>
+                    </div>
+                    <div class="item">
+                        <h3 id="totalIncome">0 ₫</h3>
+                        <p>Tổng thu</p>
+                    </div>
+                    <div class="item">
+                        <h3 id="totalExpense">0 ₫</h3>
+                        <p>Tổng chi</p>
+                    </div>
+
+                </div>
+
+                <table id="txTable">
+                    <thead>
+                    <tr><th>Ngày</th><th>Mô tả</th><th>Danh mục</th><th>Số tiền</th><th>Loại</th><th class="actions">Hành động</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <aside style="width:360px">
+                <div class="card" style="padding:12px">
+                    <h3 style="margin-top:0">Biểu đồ danh mục</h3>
+                    <canvas id="pieChart" width="300" height="300"></canvas>
+                </div>
+                <div class="savings">
+                    <h4>Mục tiêu tiết kiệm trong tháng</h4>
+                    <input type="number" id="goalInput" placeholder="Nhập số tiền..." />
+                    <button id="setGoalBtn">Đặt mục tiêu</button>
+                    <p>Tiến độ: <span id="savedPercent">0</span>%</p>
+                    <p>Số tiền còn thiếu: <span id="remainingAmount">0</span></p>
+                </div>
+            </aside>
+        </div>
+    </section>
+</div>
+
+<script>
+    (function(){
+        const $ = id=>document.getElementById(id);
+        const fmt = n=>n==null?'-':(Number(n).toLocaleString('vi-VN') + ' ₫');
+
+        const form = $('expenseForm'), typeIn=$('type'), categoryIn=$('category'), amountIn=$('amount'), dateIn=$('date'), descIn=$('desc');
+        const txTable = document.querySelector('#txTable tbody');
+        const totalBalance=$('totalBalance'), totalIncome=$('totalIncome'), totalExpense=$('totalExpense');
+        const countEl=$('count'), filterMonth=$('filterMonth'), filterCategory=$('filterCategory');
+        const exportBtn=$('exportBtn'), clearBtn=$('clearBtn'), resetForm=$('resetForm');
+
+        const KEY = 'qlct_transactions_v1';
+        let txs = load(), editId=null;
+
+        // mục tiêu tiết kiệm
+        let savingGoal=0;
+        const goalInput=$('goalInput'), setGoalBtn=$('setGoalBtn'), savedPercent=$('savedPercent'), remainingAmount=$('remainingAmount');
+
+        dateIn.value = new Date().toISOString().slice(0,10);
+
+        function refreshCategories(){
+            const cats = Array.from(new Set(['Tất cả danh mục', ...txs.map(t=>t.category), ...Array.from(categoryIn.querySelectorAll('option')).map(o=>o.value)]))
+                .filter(Boolean);
+            filterCategory.innerHTML = '<option value="all">Tất cả danh mục</option>' + cats.filter(c=>c!=='Tất cả danh mục').map(c=>`<option>${c}</option>`).join('');
+        }
+
+        function refreshMonths(){
+            const now = new Date();
+            filterMonth.innerHTML = '<option value="all">Tất cả tháng</option>';
+            for(let i=0;i<12;i++){
+                const d = new Date(now.getFullYear(), now.getMonth()-i,1);
+                const val = d.toISOString().slice(0,7);
+                const label = d.toLocaleString('vi-VN',{month:'long',year:'numeric'});
+                filterMonth.insertAdjacentHTML('beforeend',`<option value="${val}">${label}</option>`);
+            }
+        }
+
+        function load(){try{const raw=localStorage.getItem(KEY);return raw?JSON.parse(raw):[];}catch(e){return []}}
+        function save(){ localStorage.setItem(KEY,JSON.stringify(txs)); }
+        function id(){return 't'+Math.random().toString(36).slice(2,9)}
+
+        function getTotalIncome(){ return txs.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0); }
+        function getTotalExpense(){ return txs.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0); }
+
+        function updateSavingProgress(){
+            const totalSaved = getTotalIncome() - getTotalExpense();
+            if(savingGoal>0){
+                let percent = Math.min(100, Math.round((totalSaved / savingGoal)*100));
+                savedPercent.textContent = percent;
+                remainingAmount.textContent = Math.max(0, savingGoal - totalSaved);
+            } else {
+                savedPercent.textContent = 0;
+                remainingAmount.textContent = 0;
+            }
+        }
+
+        let chart;
+        function render(){
+            const fm = filterMonth.value, fc=filterCategory.value;
+            let list = txs.slice().sort((a,b)=>b.date.localeCompare(a.date));
+            if(fm && fm!=='all') list = list.filter(t=>t.date.slice(0,7)===fm);
+            if(fc && fc!=='all') list = list.filter(t=>t.category===fc);
+
+            txTable.innerHTML = list.map(t=>`<tr>
+        <td>${t.date}</td>
+        <td>${t.desc||''}</td>
+        <td>${t.category}</td>
+        <td>${fmt(t.amount)}</td>
+        <td class="small">${t.type==='income'? 'Thu' : 'Chi'}</td>
+        <td class="actions">
+            <button class="btn ghost" onclick="openEdit('${t.id}')">Sửa</button>
+            <button class="btn danger" onclick="del('${t.id}')">Xóa</button>
+        </td>
+        </tr>`).join('');
+
+            const totalInc = getTotalIncome();
+            const totalExp = getTotalExpense();
+            totalIncome.textContent = fmt(totalInc);
+            totalExpense.textContent = fmt(totalExp);
+            totalBalance.textContent = fmt(totalInc-totalExp);
+            countEl.textContent = txs.length;
+
+            const byCat = {};
+            list.filter(t=>t.type==='expense').forEach(t=>{byCat[t.category]=(byCat[t.category]||0)+Number(t.amount)});
+            const labels = Object.keys(byCat), data = labels.map(l=>byCat[l]);
+            const ctx = document.getElementById('pieChart').getContext('2d');
+            if(chart) chart.destroy();
+            chart = new Chart(ctx,{type:'pie',data:{labels,datasets:[{data}]},options:{plugins:{legend:{position:'bottom'}}}});
+
+            refreshCategories();
+            refreshMonths();
+            updateSavingProgress();
+        }
+
+        form.addEventListener('submit', e=>{
+            e.preventDefault();
+            const t={id:editId||id(), type:typeIn.value, category:categoryIn.value||'Khác', amount:Number(amountIn.value)||0, date:dateIn.value, desc:descIn.value};
+            if(editId){txs=txs.map(x=>x.id===editId?t:x); editId=null;}
+            else txs.push(t);
+            save(); render();
+            form.reset(); dateIn.value=new Date().toISOString().slice(0,10);
+        });
+
+        window.openEdit=function(id){
+            const t=txs.find(x=>x.id===id); if(!t)return;
+            editId=id; typeIn.value=t.type; categoryIn.value=t.category; amountIn.value=t.amount; dateIn.value=t.date; descIn.value=t.desc;
+            window.scrollTo({top:0,behavior:'smooth'});
+        }
+
+        window.del=function(id){if(!confirm('Xác nhận xóa giao dịch?'))return; txs=txs.filter(x=>x.id!==id); save(); render();}
+
+        exportBtn.addEventListener('click',()=>{
+            if(!txs.length){alert('Không có dữ liệu để export');return;}
+            const rows=[['id','type','category','amount','date','desc'], ...txs.map(t=>[t.id,t.type,t.category,t.amount,t.date,`"${(t.desc||'').replace(/"/g,'""')}"`])];
+            const csv=rows.map(r=>r.join(',')).join('\n');
+            const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+            const url=URL.createObjectURL(blob);
+            const a=document.createElement('a'); a.href=url; a.download='transactions.csv'; a.click(); URL.revokeObjectURL(url);
+        });
+
+        clearBtn.addEventListener('click',()=>{
+            if(!confirm('Xóa toàn bộ dữ liệu? Hành động không thể hoàn tác.'))return;
+            txs=[]; save(); render();
+        });
+
+        resetForm.addEventListener('click',()=>{form.reset(); editId=null; dateIn.value=new Date().toISOString().slice(0,10);});
+        filterMonth.addEventListener('change',render);
+        filterCategory.addEventListener('change',render);
+
+        setGoalBtn.addEventListener('click', ()=>{savingGoal = parseFloat(goalInput.value)||0; updateSavingProgress();});
+
+        render();
+    })();
+</script>
+</body>
+</html>

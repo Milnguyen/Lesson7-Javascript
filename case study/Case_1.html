@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Game Vượt Lên Chính Mình</title>
+    <style>
+    body {
+        margin: 0;
+        overflow: hidden;
+        background: #87CEEB;
+        font-family: sans-serif;
+    }
+    #game {
+        position: relative;
+        width: 700px;
+        height: 400px;
+        margin: 50px auto;
+        background: #f0f0f0;
+        overflow: hidden;
+        border: 2px solid #000;
+    }
+    #player {
+        position: absolute;
+        bottom: 0;
+        left: 50px;
+        width: 50px;
+        height: 50px;
+        background: darkgoldenrod;
+    }
+    .obstacle {
+        position: absolute;
+        bottom: 0;
+        width: 30px;
+        height: 50px;
+        background: aquamarine;
+        right: 0;
+    }
+    </style>
+</head>
+<body>
+<div id = "game">
+    <div id ="player"></div>
+</div>
+<script src = "Case_1.js"></script>
+</body>
+</html>

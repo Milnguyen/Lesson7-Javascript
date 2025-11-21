@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Đào Vàng</title>
+    <style>
+        body{margin:0;font-family:sans-serif;background:#0b1220;color:#fff;display:flex;justify-content:center;align-items:center;height:100vh;}
+        canvas{background:#87ceeb;border:1px solid #333;display:block;margin:10px auto;}
+        .controls{text-align:center;margin-bottom:10px;}
+        button{margin:0 5px;padding:5px 10px;}
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <span>Thời gian: <span id="time">60</span>s</span>
+    <span>Điểm: <span id="score">0</span></span>
+    <button id="startBtn">Bắt đầu</button>
+    <button id="restartBtn">Khởi động lại</button>
+</div>
+<canvas id="game" width="880" height="480"></canvas>
+
+<script>
+    const canvas=document.getElementById('game');
+    const ctx=canvas.getContext('2d');
+    const W=canvas.width,H=canvas.height;
+    const timeEl=document.getElementById('time');
+    const scoreEl=document.getElementById('score');
+    const startBtn=document.getElementById('startBtn');
+    const restartBtn=document.getElementById('restartBtn');
+
+    let hook, items=[], running=false, timeLeft=60, score=0, raf=null, lastTime=0, timerInterval=null;
+
+    function rand(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+
+    class Item{
+        constructor(x,y,type,weight){
+            this.x=x; this.y=y; this.type=type; this.radius=type==='rock'?18:(type==='gold'?12:10);
+            this.weight=weight; this.collected=false;
+            this.value=type==='gold'?100:(type==='rock'?20:200);
+        }
+        draw(ctx){
+            if(this.collected) return;
+            ctx.save(); ctx.translate(this.x,this.y);
+            if(this.type==='gold'){ctx.fillStyle='#d4af37';ctx.beginPath();ctx.ellipse(0,0,this.radius,this.radius-3,Math.PI/6,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#8b6a18';ctx.stroke();}
+            else if(this.type==='rock'){ctx.fillStyle='#6b7280';ctx.beginPath();ctx.moveTo(-this.radius,0);ctx.lineTo(0,-this.radius/1.5);ctx.lineTo(this.radius,0);ctx.lineTo(0,this.radius);ctx.closePath();ctx.fill();ctx.strokeStyle='#111';ctx.stroke();}
+            else{ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(0,0,this.radius,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#c7d2fe';ctx.stroke();}
+            ctx.restore();
+        }
+    }
+
+    class Hook{
+        constructor(x,y){
+            this.baseX=x; this.baseY=y;
+            this.angle=Math.PI/4; this.len=50; this.speed=2; this.dir=1;
+            this.state='swing'; this.x=x+Math.cos(this.angle)*this.len; this.y=y+Math.sin(this.angle)*this.len;
+            this.hooked=null;
+        }
+        update(dt){
+            if(this.state==='swing'){
+                this.angle += this.speed*0.4*this.dir*dt;
+                if(this.angle>Math.PI*0.9||this.angle<Math.PI*0.1) this.dir*=-1;
+                this.len=50;
+                this.x=this.baseX+Math.cos(this.angle)*this.len;
+                this.y=this.baseY+Math.sin(this.angle)*this.len;
+            }
+            else if(this.state==='shoot'){
+                this.len += 300*dt;
+                this.x=this.baseX+Math.cos(this.angle)*this.len;
+                this.y=this.baseY+Math.sin(this.angle)*this.len;
+                if(this.x<0||this.x>W||this.y>H) this.state='pull';
+                for(let it of items){
+                    if(!it.collected && Math.hypot(this.x-it.x,this.y-it.y)<it.radius+6){
+                        this.hooked=it; it.collected=true; this.state='pull'; break;
+                    }
+                }
+            }
+            else if(this.state==='pull'){
+                let weight=this.hooked?this.hooked.weight:1;
+                this.len -= (200/weight)*dt;
+                this.x=this.baseX+Math.cos(this.angle)*this.len;
+                this.y=this.baseY+Math.sin(this.angle)*this.len;
+                if(this.len<50){if(this.hooked){score+=this.hooked.value;scoreEl.textContent=score;} this.hooked=null; this.state='swing'; this.len=50;}
+            }
+        }
+        draw(ctx){
+            const x=this.x,y=this.y;
+            ctx.strokeStyle='#322'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(this.baseX,this.baseY); ctx.lineTo(x,y); ctx.stroke();
+            ctx.fillStyle='#444'; ctx.beginPath(); ctx.arc(x,y,8,0,Math.PI*2); ctx.fill();
+            if(this.hooked){this.hooked.x=x; this.hooked.y=y+this.hooked.radius+6; this.hooked.draw(ctx);}
+        }
+    }
+
+    function generateLevel(){
+        let arr=[];
+        for(let i=0;i<12;i++) arr.push(new Item(rand(40,W-40),rand(140,H-40),'gold',rand(1,3)));
+        for(let i=0;i<8;i++) arr.push(new Item(rand(40,W-40),rand(140,H-40),'rock',rand(3,6)));
+        for(let i=0;i<4;i++) arr.push(new Item(rand(40,W-40),rand(140,H-40),'pearl',1));
+        return arr;
+    }
+
+    function reset(){
+        timeLeft=60; score=0; scoreEl.textContent=score; timeEl.textContent=timeLeft;
+        items=generateLevel(); hook=new Hook(W/2,80); running=false; cancelAnimationFrame(raf); raf=null; lastTime=0;
+    }
+
+    function start(){
+        if(running) return;
+        running=true; lastTime=performance.now();
+        if(timerInterval) clearInterval(timerInterval);
+        timerInterval=setInterval(()=>{
+            timeLeft--; timeEl.textContent=timeLeft;
+            if(timeLeft<=0) endGame();
+        },1000);
+        raf=requestAnimationFrame(loop);
+    }
+
+    function endGame(){
+        running=false; clearInterval(timerInterval); timerInterval=null;
+        alert('Hết giờ! Điểm của bạn: '+score);
+    }
+
+    canvas.addEventListener('click',()=>{if(!running) return; if(hook.state==='swing') hook.state='shoot';});
+    startBtn.addEventListener('click',()=>{start();});
+    restartBtn.addEventListener('click',()=>{reset(); start();});
+
+    function update(dt){hook.update(dt);}
+    function draw(){
+        ctx.clearRect(0,0,W,H);
+        ctx.fillStyle='#7dd3fc'; ctx.fillRect(0,120,W,H-120);
+        ctx.fillStyle='#6b7280'; ctx.fillRect(0,H-80,W,80);
+        items.forEach(it=>it.draw(ctx));
+        ctx.fillStyle='#222'; ctx.fillRect(hook.baseX-30,hook.baseY-10,60,20);
+        hook.draw(ctx);
+    }
+    function loop(timestamp){
+        if(!lastTime) lastTime=timestamp;
+        const dt=(timestamp-lastTime)/1000;
+        lastTime=timestamp;
+        update(dt); draw();
+        if(running) raf=requestAnimationFrame(loop);
+    }
+
+    reset();
+</script>
+
+</body>
+</html>
